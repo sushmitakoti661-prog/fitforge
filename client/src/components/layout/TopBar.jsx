@@ -41,9 +41,9 @@ const TopBar = ({ theme, onToggleTheme }) => {
   return (
     <header className="sticky top-0 z-10 border-b border-[#E4E4E7] bg-[#F9F9F9]/95 px-4 py-3 backdrop-blur transition-colors duration-300 dark:border-dark-border dark:bg-dark-bg/95">
       <div className="mx-auto flex w-full max-w-3xl items-center justify-between">
-        <div className="flex items-center">
-          <img src={logoLight} alt="FitForge" className="h-8 w-auto dark:hidden" />
-          <img src={logoDark} alt="FitForge" className="hidden h-8 w-auto dark:block" />
+        <div className="flex h-12 max-w-[190px] items-center">
+          <img src={logoLight} alt="FitForge" className="h-12 w-auto max-w-[190px] object-contain dark:hidden" />
+          <img src={logoDark} alt="FitForge" className="hidden h-12 w-auto max-w-[190px] object-contain dark:block" />
         </div>
         <div className="flex items-center gap-3">
           <button
