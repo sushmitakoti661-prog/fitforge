@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 body {
-  @apply m-0 bg-dark-bg text-white antialiased;
+  @apply m-0 bg-[#F9F9F9] text-[#111111] antialiased transition-colors duration-300;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+html.dark body {
+  @apply bg-dark-bg text-white;
 }
