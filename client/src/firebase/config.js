@@ -3,12 +3,13 @@ import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: "AIzaSyBUpyX136jYDdumg9rjCTVAGlUeUZthh5w",
+  authDomain: "fitforge-com.firebaseapp.com",
+  projectId: "fitforge-com",
+  storageBucket: "fitforge-com.firebasestorage.app",
+  messagingSenderId: "684727800460",
+  appId: "1:684727800460:web:0207c32946ac09bb65a1a9",
+  measurementId: "G-QVRJ3N8MQH"
 }
 
 const app = initializeApp(firebaseConfig)
