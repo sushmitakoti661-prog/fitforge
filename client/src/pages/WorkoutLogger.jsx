@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Timestamp, addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { Link } from 'react-router-dom'
 import WorkoutCard from '../components/ui/WorkoutCard'
 import { db } from '../firebase/config'
 import useAuth from '../hooks/useAuth'
@@ -65,6 +66,7 @@ const WorkoutLogger = () => {
   const [submitMessage, setSubmitMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showCoachLink, setShowCoachLink] = useState(false)
 
   const [cardioForm, setCardioForm] = useState({
     activityType: 'Running',
@@ -95,6 +97,7 @@ const WorkoutLogger = () => {
     setWorkoutType(type)
     setSubmitMessage('')
     setErrorMessage('')
+    setShowCoachLink(false)
   }
 
   const toggleMuscleGroup = (muscleGroup) => {
@@ -223,6 +226,7 @@ const WorkoutLogger = () => {
     setSaving(true)
     setSubmitMessage('')
     setErrorMessage('')
+    setShowCoachLink(false)
 
     try {
       if (workoutType === 'cardio') {
@@ -233,8 +237,10 @@ const WorkoutLogger = () => {
 
       await refreshWorkouts()
       setSubmitMessage('Workout saved successfully.')
+      setShowCoachLink(true)
     } catch (error) {
       setErrorMessage(error.message || 'Unable to save workout.')
+      setShowCoachLink(false)
     } finally {
       setSaving(false)
     }
@@ -517,6 +523,11 @@ const WorkoutLogger = () => {
         )}
 
         {submitMessage ? <p className="text-sm font-medium text-success">{submitMessage}</p> : null}
+        {showCoachLink ? (
+          <Link to="/coach" className="inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">
+            See what your AI Coach thinks &rarr;
+          </Link>
+        ) : null}
         {errorMessage ? <p className="text-sm font-medium text-danger">{errorMessage}</p> : null}
 
         <button
