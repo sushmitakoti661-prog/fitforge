@@ -1,11 +1,19 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai')
 
-const GEMINI_MODEL = 'gemini-1.5-flash'
+// Model hierarchy: try fastest/most capable first, fallback to more stable
+const GEMINI_MODELS = [
+  'gemini-1.5-flash',    // Fastest, most capable
+  'gemini-1.5-flash-8b'  // Stable 8B parameter version
+]
+
 const FRIENDLY_FALLBACK = 'AI response is temporarily unavailable. Please try again shortly.'
 
 const getGeminiClient = () => {
   const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey || apiKey === 'YOUR_KEY') return null
+  if (!apiKey || apiKey === 'YOUR_KEY') {
+    console.error('❌ Gemini API: Missing or placeholder API key')
+    return null
+  }
   return new GoogleGenerativeAI(apiKey)
 }
 
@@ -16,26 +24,60 @@ const generateAIResponse = async (prompt) => {
       ok: false,
       text: FRIENDLY_FALLBACK,
       reason: 'missing_api_key',
+      source: 'fallback'
     }
   }
 
-  try {
-    const model = client.getGenerativeModel({ model: GEMINI_MODEL })
-    const result = await model.generateContent(prompt)
-    const text = result?.response?.text?.()?.trim()
+  // Try models in order until one works
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      
+      const model = client.getGenerativeModel({ model: modelName })
+      const result = await model.generateContent(prompt)
+      const text = result?.response?.text?.()?.trim()
 
-    return {
-      ok: Boolean(text),
-      text: text || FRIENDLY_FALLBACK,
-      reason: text ? null : 'empty_response',
+      if (text) {
+        
+        return {
+          ok: true,
+          text: text,
+          reason: null,
+          source: modelName
+        }
+      } else {
+        console.warn(`⚠️ Gemini ${modelName}: Empty response, trying next model`)
+        continue
+      }
+    } catch (error) {
+      const errorMessage = error.message || 'Unknown error'
+      const statusCode = error.status || error.code
+
+      // Log specific error types
+      if (statusCode === 404 || errorMessage.includes('model not found')) {
+        console.warn(`⚠️ Gemini ${modelName}: Model not found (404), trying next model`)
+      } else if (statusCode === 429 || errorMessage.includes('quota') || errorMessage.includes('rate limit')) {
+        console.warn(`⚠️ Gemini ${modelName}: Quota exceeded (429), trying next model`)
+      } else if (statusCode === 403 || errorMessage.includes('permission') || errorMessage.includes('forbidden')) {
+        console.error(`❌ Gemini ${modelName}: Permission denied (403), API key may be invalid`)
+        break // Don't try other models if API key is invalid
+      } else if (statusCode >= 500) {
+        console.warn(`⚠️ Gemini ${modelName}: Server error (${statusCode}), trying next model`)
+      } else {
+        console.error(`❌ Gemini ${modelName}: Unexpected error (${statusCode}): ${errorMessage}`)
+      }
+
+      // Continue to next model
+      continue
     }
-  } catch (error) {
-    console.error('Gemini API error:', error.message)
-    return {
-      ok: false,
-      text: FRIENDLY_FALLBACK,
-      reason: 'gemini_error',
-    }
+  }
+
+  // All models failed
+  console.error('❌ All Gemini models failed, using fallback response')
+  return {
+    ok: false,
+    text: FRIENDLY_FALLBACK,
+    reason: 'all_models_failed',
+    source: 'fallback'
   }
 }
 
@@ -70,34 +112,46 @@ Workout context: ${JSON.stringify(workoutContext)}
 
 const coach = async (req, res) => {
   const { workouts = [], userProfile = {} } = req.body || {}
+  
+
   const prompt = buildCoachPrompt({ workouts, userProfile })
   const result = await generateAIResponse(prompt)
 
+  
+
   return res.status(200).json({
     advice: result.text,
-    source: result.ok ? 'gemini' : 'fallback',
+    source: result.source,
   })
 }
 
 const roadmap = async (req, res) => {
   const { mode, goal, currentLevel, deadline, daysPerWeek } = req.body || {}
+  
+
   const prompt = buildRoadmapPrompt({ mode, goal, currentLevel, deadline, daysPerWeek })
   const result = await generateAIResponse(prompt)
 
+  
+
   return res.status(200).json({
     roadmap: result.text,
-    source: result.ok ? 'gemini' : 'fallback',
+    source: result.source,
   })
 }
 
 const chat = async (req, res) => {
   const { message = '', chatHistory = [], workoutContext = {} } = req.body || {}
+  
+
   const prompt = buildChatPrompt({ message, chatHistory, workoutContext })
   const result = await generateAIResponse(prompt)
 
+  
+
   return res.status(200).json({
     reply: result.text,
-    source: result.ok ? 'gemini' : 'fallback',
+    source: result.source,
   })
 }
 
