@@ -34,7 +34,7 @@ const formatDate = (value) => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-const WorkoutCard = ({ workout }) => {
+const WorkoutCard = ({ workout, onClick }) => {
   const isCardio = workout.type === 'cardio'
   const title = isCardio ? workout.activityType || 'Cardio Workout' : workout.workoutName || 'Weight Training'
   const stats = isCardio
@@ -43,7 +43,12 @@ const WorkoutCard = ({ workout }) => {
   const feeling = feelingStyles[workout.feeling] || feelingStyles.moderate
 
   return (
-    <article className="rounded-2xl border border-[#E4E4E7] bg-[#F1F1F1] p-4 transition-colors duration-300 dark:border-dark-border dark:bg-dark-card">
+    <article
+      onClick={onClick}
+      className={`rounded-2xl border border-[#E4E4E7] bg-[#F1F1F1] p-4 transition-colors duration-300 dark:border-dark-border dark:bg-dark-card ${
+        onClick ? 'cursor-pointer hover:border-primary/50 dark:hover:border-primary/50' : ''
+      }`}
+    >
       <div className="flex items-start gap-3">
         <div className="mt-1 rounded-full bg-primary/15 p-2 text-primary">{isCardio ? <RunIcon /> : <DumbbellIcon />}</div>
         <div className="min-w-0 flex-1">

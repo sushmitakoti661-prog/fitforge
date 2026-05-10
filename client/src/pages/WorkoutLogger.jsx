@@ -67,6 +67,7 @@ const WorkoutLogger = () => {
   const [errorMessage, setErrorMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [showCoachLink, setShowCoachLink] = useState(false)
+  const [selectedWorkout, setSelectedWorkout] = useState(null)
 
   const [cardioForm, setCardioForm] = useState({
     activityType: 'Running',
@@ -559,10 +560,149 @@ const WorkoutLogger = () => {
 
         <div className="space-y-3">
           {workouts.map((workout) => (
-            <WorkoutCard key={workout.id} workout={workout} />
+            <WorkoutCard key={workout.id} workout={workout} onClick={() => setSelectedWorkout(workout)} />
           ))}
         </div>
       </section>
+
+      {selectedWorkout && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-black/50 transition-opacity duration-300 sm:items-center sm:justify-center"
+          onClick={() => setSelectedWorkout(null)}
+        >
+          <div
+            className="w-full max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-[#E4E4E7] bg-[#F1F1F1] p-6 transition-colors duration-300 dark:border-dark-border dark:bg-dark-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-4 mb-6">
+              <h2 className="text-lg font-bold flex-1">Workout Details</h2>
+              <button
+                type="button"
+                onClick={() => setSelectedWorkout(null)}
+                className="rounded-full p-2 hover:bg-black/10 dark:hover:bg-white/10"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 dark:border-dark-border dark:bg-dark-bg">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">
+                  {selectedWorkout.type === 'cardio' ? 'Cardio Workout' : 'Weight Training'}
+                </p>
+                <p className="mt-2 text-xl font-bold">
+                  {selectedWorkout.type === 'cardio' ? selectedWorkout.activityType : selectedWorkout.workoutName}
+                </p>
+              </div>
+
+              {selectedWorkout.type === 'cardio' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-[#E5E7EB] bg-white p-3 dark:border-dark-border dark:bg-dark-bg">
+                    <p className="text-2xl font-black">{Number(selectedWorkout.distance || 0).toFixed(2)}</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">km</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#E5E7EB] bg-white p-3 dark:border-dark-border dark:bg-dark-bg">
+                    <p className="text-2xl font-black">{Number(selectedWorkout.duration || 0).toFixed(0)}</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">minutes</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#E5E7EB] bg-white p-3 dark:border-dark-border dark:bg-dark-bg">
+                    <p className="text-2xl font-black">{formatPace(selectedWorkout.pace)}</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">Pace</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#E5E7EB] bg-white p-3 dark:border-dark-border dark:bg-dark-bg">
+                    <p className="text-lg font-bold">{selectedWorkout.feeling === 'easy' ? '😊' : selectedWorkout.feeling === 'hard' ? '🔥' : '💪'}</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">Feeling</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {selectedWorkout.muscleGroups?.length > 0 && (
+                    <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 dark:border-dark-border dark:bg-dark-bg">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">
+                        Muscle Groups
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedWorkout.muscleGroups.map((group) => (
+                          <span
+                            key={group}
+                            className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white"
+                          >
+                            {group}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedWorkout.exercises?.length > 0 && (
+                    <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 dark:border-dark-border dark:bg-dark-bg">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">
+                        Exercises
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        {selectedWorkout.exercises.map((exercise, idx) => (
+                          <div key={idx} className="border-t border-[#E5E7EB] pt-3 first:border-0 first:pt-0 dark:border-dark-border">
+                            <p className="font-semibold">{exercise.name}</p>
+                            {exercise.sets?.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {exercise.sets.map((set, setIdx) => (
+                                  <p key={setIdx} className="text-sm text-[#6B7280] dark:text-zinc-400">
+                                    Set {setIdx + 1}: {set.reps} reps
+                                    {set.weight ? ` @ ${set.weight} kg` : ''}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-2xl border border-[#E5E7EB] bg-white p-3 dark:border-dark-border dark:bg-dark-bg">
+                    <p className="text-lg font-bold">{selectedWorkout.feeling === 'easy' ? '😊' : selectedWorkout.feeling === 'hard' ? '🔥' : '💪'}</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">Feeling</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedWorkout.notes && (
+                <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 dark:border-dark-border dark:bg-dark-bg">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">
+                    Notes
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed">{selectedWorkout.notes}</p>
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 dark:border-dark-border dark:bg-dark-bg">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">
+                  Date
+                </p>
+                <p className="mt-2 text-sm">
+                  {selectedWorkout.date
+                    ? typeof selectedWorkout.date.toDate === 'function'
+                      ? selectedWorkout.date.toDate().toLocaleDateString(undefined, {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                      : new Date(selectedWorkout.date).toLocaleDateString(undefined, {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                    : 'No date'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

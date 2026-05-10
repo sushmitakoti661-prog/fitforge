@@ -2,8 +2,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai')
 
 // Model hierarchy: try fastest/most capable first, fallback to more stable
 const GEMINI_MODELS = [
-  'gemini-1.5-flash',    // Fastest, most capable
-  'gemini-1.5-flash-8b'  // Stable 8B parameter version
+  'gemini-flash-latest'
 ]
 
 const FRIENDLY_FALLBACK = 'AI response is temporarily unavailable. Please try again shortly.'
