@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Timestamp, addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { Timestamp, addDoc, collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
 import { Link } from 'react-router-dom'
 import WorkoutCard from '../components/ui/WorkoutCard'
+import StreakCelebrationOverlay from '../components/ui/StreakCelebrationOverlay'
 import { db } from '../firebase/config'
 import useAuth from '../hooks/useAuth'
 import useWorkouts from '../hooks/useWorkouts'
+import { calculateLongestStreak, calculateStreak } from '../utils/streakUtils'
 
 const activityTypes = ['Running', 'Cycling', 'Swimming', 'Walking', 'Other']
 const feelingOptions = [
@@ -68,6 +70,7 @@ const WorkoutLogger = () => {
   const [saving, setSaving] = useState(false)
   const [showCoachLink, setShowCoachLink] = useState(false)
   const [selectedWorkout, setSelectedWorkout] = useState(null)
+  const [milestone, setMilestone] = useState(null)
 
   const [cardioForm, setCardioForm] = useState({
     activityType: 'Running',
@@ -222,6 +225,49 @@ const WorkoutLogger = () => {
     })
   }
 
+  const getAllWorkoutsForStats = async () => {
+    if (!currentUser?.uid) return []
+    const workoutsRef = collection(db, `users/${currentUser.uid}/workouts`)
+    const snapshot = await getDocs(workoutsRef)
+    return snapshot.docs.map((docSnapshot) => ({ id: docSnapshot.id, ...docSnapshot.data() }))
+  }
+
+  const getPreviousProfileStreak = async () => {
+    if (!currentUser?.uid) return 0
+    const profileRef = doc(db, 'users', currentUser.uid)
+    const profileSnapshot = await getDoc(profileRef)
+    return profileSnapshot.exists() ? profileSnapshot.data()?.currentStreak || 0 : 0
+  }
+
+  const updateUserProfileStats = async (workouts) => {
+    if (!currentUser?.uid) return 0
+    const currentStreak = calculateStreak(workouts)
+    const longestStreak = calculateLongestStreak(workouts)
+    const totalWorkouts = workouts.length
+
+    const latestWorkout = workouts
+      .filter((workout) => workout.date)
+      .sort((a, b) => {
+        const aDate = typeof a.date.toDate === 'function' ? a.date.toDate() : new Date(a.date)
+        const bDate = typeof b.date.toDate === 'function' ? b.date.toDate() : new Date(b.date)
+        return bDate.getTime() - aDate.getTime()
+      })[0]
+
+    const profileRef = doc(db, 'users', currentUser.uid)
+    await setDoc(
+      profileRef,
+      {
+        currentStreak,
+        longestStreak,
+        lastWorkoutDate: latestWorkout?.date || serverTimestamp(),
+        totalWorkouts,
+      },
+      { merge: true },
+    )
+
+    return currentStreak
+  }
+
   const handleSaveWorkout = async (event) => {
     event.preventDefault()
     setSaving(true)
@@ -234,6 +280,14 @@ const WorkoutLogger = () => {
         await saveCardioWorkout()
       } else {
         await saveWeightWorkout()
+      }
+
+      const previousStreak = await getPreviousProfileStreak()
+      const allWorkouts = await getAllWorkoutsForStats()
+      const newStreak = await updateUserProfileStats(allWorkouts)
+
+      if ([7, 30, 50, 100].includes(newStreak) && previousStreak < newStreak) {
+        setMilestone(newStreak)
       }
 
       await refreshWorkouts()
@@ -249,6 +303,7 @@ const WorkoutLogger = () => {
 
   return (
     <section className="space-y-5">
+      <StreakCelebrationOverlay milestone={milestone} onClose={() => setMilestone(null)} />
       <header className="rounded-2xl border border-[#E4E4E7] bg-[#F1F1F1] p-4 transition-colors duration-300 dark:border-dark-border dark:bg-dark-card">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">Workout Logger</p>
         <h1 className="mt-2 text-2xl font-bold">Log today&apos;s training</h1>
@@ -548,7 +603,7 @@ const WorkoutLogger = () => {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold">Last 7 Workouts</h2>
+          <h2 className="text-base font-bold">Recent Workouts</h2>
           {loading ? <span className="text-xs text-[#6B7280] dark:text-zinc-400">Loading...</span> : null}
         </div>
 
@@ -559,7 +614,7 @@ const WorkoutLogger = () => {
         ) : null}
 
         <div className="space-y-3">
-          {workouts.map((workout) => (
+          {workouts.slice(0, 3).map((workout) => (
             <WorkoutCard key={workout.id} workout={workout} onClick={() => setSelectedWorkout(workout)} />
           ))}
         </div>
