@@ -124,7 +124,7 @@ const Dashboard = () => {
     ? 'Your streak is on fire — keep it burning.'
     : 'Keep pushing, one workout at a time.'
 
-  const recentWorkouts = useMemo(() => workouts.slice(0, 5), [workouts])
+  const recentWorkouts = useMemo(() => workouts.slice(0, 3), [workouts])
   const lastWorkoutDate = recentWorkouts[0]?.date
   const lastWorkoutRelative = formatRelativeDate(lastWorkoutDate)
   const latestRoadmap = dashboardStats.latestRoadmap
@@ -203,7 +203,7 @@ const Dashboard = () => {
             to="/log"
             className="text-sm font-semibold text-primary transition hover:text-primary/80"
           >
-            View all workouts →
+            View last 7 workouts →
           </Link>
         </div>
 

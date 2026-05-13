@@ -614,7 +614,7 @@ const WorkoutLogger = () => {
         ) : null}
 
         <div className="space-y-3">
-          {workouts.slice(0, 3).map((workout) => (
+          {workouts.slice(0, 7).map((workout) => (
             <WorkoutCard key={workout.id} workout={workout} onClick={() => setSelectedWorkout(workout)} />
           ))}
         </div>
