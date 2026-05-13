@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { addDoc, collection, getDocs, limit, orderBy, query, serverTimestamp } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import useAuth from '../hooks/useAuth'
 import { generateRoadmap } from '../utils/apiService'
@@ -70,12 +70,16 @@ const parseWeeklyRoadmap = (text) => {
   return sections.length ? sections : [{ title: 'Weekly Roadmap', body: text.trim() }]
 }
 
+const parseRoadmapDetail = (roadmap) => {
+  return roadmap?.mode === 'weekly' ? parseWeeklyRoadmap(roadmap.content) : parseSkillRoadmap(roadmap.content)
+}
+
 const GoalRoadmap = () => {
   const { currentUser } = useAuth()
   const userId = currentUser?.uid || null
   const [activeMode, setActiveMode] = useState('skill')
   const [roadmapText, setRoadmapText] = useState('')
-  const [savedRoadmap, setSavedRoadmap] = useState(null)
+  const [savedRoadmaps, setSavedRoadmaps] = useState([])
   const [loadingSaved, setLoadingSaved] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -124,41 +128,82 @@ const GoalRoadmap = () => {
     return ''
   }
 
-  const loadSavedRoadmap = useCallback(async () => {
+  const loadSavedRoadmaps = useCallback(async () => {
     if (!userId) return
     setLoadingSaved(true)
     try {
       const roadmapRef = collection(db, `users/${userId}/roadmaps`)
-      const roadmapQuery = query(roadmapRef, orderBy('generatedAt', 'desc'), limit(1))
+      const roadmapQuery = query(roadmapRef, orderBy('generatedAt', 'desc'))
       const snapshot = await getDocs(roadmapQuery)
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0]
+      const roadmaps = snapshot.docs.map((doc) => {
         const data = doc.data()
-        setSavedRoadmap({
+        return {
           id: doc.id,
-          ...data,
+          mode: data.mode || (data.modeLabel === 'Weekly Plan' ? 'weekly' : 'skill'),
+          modeLabel: data.modeLabel || (data.mode === 'weekly' ? 'Weekly Plan' : 'Skill Goal'),
+          goal: data.goal || '',
+          content: data.content || '',
           generatedAt: formatTimestamp(data.generatedAt),
-        })
-      } else {
-        setSavedRoadmap(null)
-      }
+          generatedAtRaw: data.generatedAt,
+        }
+      })
+      setSavedRoadmaps(roadmaps)
     } catch (error) {
-      console.error('Failed to load saved roadmap:', error)
-      setSavedRoadmap(null)
+      console.error('Failed to load saved roadmaps:', error)
+      setSavedRoadmaps([])
     } finally {
       setLoadingSaved(false)
     }
   }, [userId])
 
   useEffect(() => {
-    loadSavedRoadmap()
-  }, [loadSavedRoadmap])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadSavedRoadmaps()
+  }, [loadSavedRoadmaps])
+
+  const savedSkillRoadmaps = useMemo(
+    () => savedRoadmaps.filter((roadmap) => roadmap.mode === 'skill'),
+    [savedRoadmaps]
+  )
+
+  const savedWeeklyRoadmaps = useMemo(
+    () => savedRoadmaps.filter((roadmap) => roadmap.mode === 'weekly'),
+    [savedRoadmaps]
+  )
+
+  const currentSavedRoadmaps = useMemo(
+    () => (activeMode === 'skill' ? savedSkillRoadmaps : savedWeeklyRoadmaps),
+    [activeMode, savedSkillRoadmaps, savedWeeklyRoadmaps]
+  )
+
+  const currentSavedLabel = useMemo(
+    () => (activeMode === 'skill' ? 'Specific Goal Roadmaps' : 'Weekly Workout Roadmaps'),
+    [activeMode]
+  )
+
+  const currentEmptyMessage = useMemo(
+    () => (activeMode === 'skill' ? 'No specific goal roadmaps saved yet.' : 'No weekly workout roadmaps saved yet.'),
+    [activeMode]
+  )
 
   const handleModeChange = (mode) => {
     setActiveMode(mode)
     setErrorMessage('')
     setSuccessMessage('')
     setRoadmapText('')
+  }
+
+  const handleDeleteRoadmap = async (roadmapId) => {
+    if (!userId || !roadmapId) return
+    const confirmed = window.confirm('Delete this roadmap?')
+    if (!confirmed) return
+
+    try {
+      await deleteDoc(doc(db, `users/${userId}/roadmaps`, roadmapId))
+      setSavedRoadmaps((prev) => prev.filter((roadmap) => roadmap.id !== roadmapId))
+    } catch (error) {
+      console.error('Failed to delete roadmap:', error)
+    }
   }
 
   const handleSkillField = (field, value) => {
@@ -240,7 +285,7 @@ const GoalRoadmap = () => {
       }
       await addDoc(collection(db, `users/${userId}/roadmaps`), payload)
       setSuccessMessage('Roadmap saved to your profile.')
-      await loadSavedRoadmap()
+      await loadSavedRoadmaps()
     } catch (error) {
       console.error('Save roadmap failed:', error)
       setErrorMessage('Unable to save roadmap right now.')
@@ -491,40 +536,61 @@ const GoalRoadmap = () => {
         </form>
       </section>
 
-      <section className="space-y-4 rounded-3xl border border-[#E4E4E7] bg-[#F1F1F1] p-4 transition-colors duration-300 dark:border-dark-border dark:bg-dark-card">
+      <section className="space-y-6 rounded-3xl border border-[#E4E4E7] bg-[#F1F1F1] p-4 transition-colors duration-300 dark:border-dark-border dark:bg-dark-card">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">Saved roadmap</p>
-            <h2 className="mt-2 text-lg font-bold">Your latest saved plan</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">Saved roadmaps</p>
+            <h2 className="mt-2 text-lg font-bold">Your saved plans</h2>
           </div>
-          {loadingSaved ? (
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">Loading...</span>
-          ) : savedRoadmap ? (
-            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{savedRoadmap.modeLabel || 'Roadmap saved'}</span>
-          ) : (
-            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">No roadmap yet</span>
-          )}
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">{loadingSaved ? 'Loading...' : `${currentSavedRoadmaps.length} saved roadmap${currentSavedRoadmaps.length === 1 ? '' : 's'}`}</span>
         </div>
 
-        {savedRoadmap ? (
-          <div
-            onClick={() => setSelectedRoadmapDetail(parseSkillRoadmap(savedRoadmap.content))}
-            className="space-y-3 rounded-3xl border border-[#E5E7EB] bg-white p-4 cursor-pointer transition hover:border-primary/50 dark:border-dark-border dark:bg-[#111111] dark:hover:border-primary/50"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold">{savedRoadmap.goal}</p>
-                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-500">{savedRoadmap.modeLabel}</p>
-              </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">{savedRoadmap.generatedAt}</p>
+        <div className="space-y-4">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">{currentSavedLabel}</p>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Only saved {activeMode === 'skill' ? 'skill goal' : 'weekly workout'} roadmaps.</p>
             </div>
-            <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-300 line-clamp-4">{savedRoadmap.content}</p>
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{currentSavedRoadmaps.length}</span>
           </div>
-        ) : (
-          <div className="rounded-3xl border border-dashed border-[#E4E4E7] bg-white p-6 text-center text-sm text-zinc-500 dark:border-dark-border dark:bg-dark-bg dark:text-zinc-400">
-            No roadmap saved yet. Generate one above, then tap save to keep it in your profile.
-          </div>
-        )}
+
+          {currentSavedRoadmaps.length ? (
+            <div className="space-y-3">
+              {currentSavedRoadmaps.map((roadmap) => (
+                <div
+                  key={roadmap.id}
+                  onClick={() => setSelectedRoadmapDetail(parseRoadmapDetail(roadmap))}
+                  className="w-full cursor-pointer rounded-3xl border border-[#E5E7EB] bg-white p-4 text-left transition hover:border-primary/50 dark:border-dark-border dark:bg-[#111111] dark:hover:border-primary/50"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{roadmap.goal}</p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-500">{roadmap.modeLabel}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{roadmap.generatedAt}</p>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleDeleteRoadmap(roadmap.id)
+                        }}
+                        className="rounded-full border border-zinc-200 bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300 line-clamp-4">{roadmap.content}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-dashed border-[#E4E4E7] bg-white p-6 text-center text-sm text-zinc-500 dark:border-dark-border dark:bg-dark-bg dark:text-zinc-400">
+              {currentEmptyMessage}
+            </div>
+          )}
+        </div>
       </section>
 
       {roadmapText ? (
