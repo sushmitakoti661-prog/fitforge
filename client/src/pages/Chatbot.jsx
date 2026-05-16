@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { addDoc, collection, getDocs, limit, orderBy, query, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import useAuth from '../hooks/useAuth'
@@ -276,7 +277,13 @@ const Chatbot = () => {
                     <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">FitForge Coach</span>
                   </div>
                 )}
-                <p className="text-sm leading-relaxed">{message.content}</p>
+                <div className="text-sm leading-7 [&_p]:mt-0 [&_p]:mb-3 [&_strong]:font-semibold [&_em]:italic [&_ul]:list-disc [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:pl-5 [&_li]:mt-2">
+                  {message.type === 'ai' ? (
+                    <ReactMarkdown>{message.content || ''}</ReactMarkdown>
+                  ) : (
+                    <p>{message.content}</p>
+                  )}
+                </div>
                 <p className="mt-2 text-xs opacity-70">{formatTimestamp(message.timestamp)}</p>
               </div>
             </div>

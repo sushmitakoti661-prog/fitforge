@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown'
+
 const SparkleIcon = () => (
   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
     <path
@@ -24,7 +26,23 @@ const AIResponseCard = ({ title = "Today's AI Tip", advice = '', loading = false
           <div className="h-3 w-4/5 animate-pulse rounded bg-zinc-300/60 dark:bg-zinc-700/70" />
         </div>
       ) : (
-        <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-[#111111] dark:text-white">{advice}</p>
+        <div className="mt-3 space-y-4 text-sm leading-7 text-[#111111] dark:text-white">
+          <ReactMarkdown
+            components={{
+              p: ({ node, ...props }) => <p className="mt-0" {...props} />,
+              strong: ({ node, ...props }) => <strong className="font-semibold text-orange-600 dark:text-orange-300" {...props} />,
+              em: ({ node, ...props }) => <em className="font-medium italic text-zinc-600 dark:text-zinc-400" {...props} />,
+              h1: ({ node, ...props }) => <h1 className="mt-4 text-base font-bold text-orange-600" {...props} />,
+              h2: ({ node, ...props }) => <h2 className="mt-4 text-base font-semibold text-orange-600" {...props} />,
+              h3: ({ node, ...props }) => <h3 className="mt-3 text-sm font-semibold text-orange-500" {...props} />,
+              ul: ({ node, ...props }) => <ul className="mt-3 list-disc space-y-2 pl-5" {...props} />,
+              ol: ({ node, ...props }) => <ol className="mt-3 list-decimal space-y-2 pl-5" {...props} />,
+              li: ({ node, ...props }) => <li className="break-words" {...props} />,
+            }}
+          >
+            {advice || ''}
+          </ReactMarkdown>
+        </div>
       )}
 
       <p className="mt-3 text-xs text-[#6B7280] dark:text-zinc-400">{note}</p>

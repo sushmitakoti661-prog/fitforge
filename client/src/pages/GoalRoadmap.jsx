@@ -70,6 +70,280 @@ const parseWeeklyRoadmap = (text) => {
   return sections.length ? sections : [{ title: 'Weekly Roadmap', body: text.trim() }]
 }
 
+const stripMarkdown = (text) =>
+  text
+    .replace(/---+/g, '')
+    .replace(/#{1,3}\s*/g, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\r?\n+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+const normalizeTitle = (title) => stripMarkdown(title)
+
+const renderInlineText = (text) => {
+  if (!text) return null
+
+  const regex = /(\*\*[^*]+\*\*|\*[^*]+\*)/g
+  const parts = []
+  let lastIndex = 0
+  let match
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+
+    const token = match[0]
+    const value = token.slice(token.startsWith('**') ? 2 : 1, token.endsWith('**') ? -2 : -1)
+
+    if (token.startsWith('**')) {
+      parts.push(
+        <strong key={match.index} className="font-semibold text-orange-600 dark:text-orange-300">
+          {value}
+        </strong>,
+      )
+    } else {
+      parts.push(
+        <em key={match.index} className="font-medium italic text-zinc-600 dark:text-zinc-400">
+          {value}
+        </em>,
+      )
+    }
+
+    lastIndex = match.index + token.length
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts.length ? parts : text
+}
+
+const isRoutineHeader = (line) => {
+  if (!line) return false
+  if (/^(ROUTINE|WORKOUT|DAY|PHASE|BLOCK|CORE|WARM[- ]?UP|COOL[- ]?DOWN)\b/i.test(line)) return true
+  if (/^[A-Z0-9\s]{3,30}$/.test(line) && line.trim().length > 2 && line.trim().includes(' ')) return true
+  return false
+}
+
+const parseRoadmapBody = (body) => {
+  const lines = body.split(/\r?\n/)
+  const blocks = []
+  let current = null
+  const flushCurrent = () => {
+    if (!current) return
+    if (current.type === 'paragraph') {
+      current.text = current.text.trim()
+      if (current.text) blocks.push(current)
+    } else {
+      blocks.push(current)
+    }
+    current = null
+  }
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim()
+    if (!line || /^---+$/.test(line)) {
+      flushCurrent()
+      return
+    }
+
+    const headingMatch = line.match(/^(#{1,3})\s*(.+)$/)
+    if (headingMatch) {
+      flushCurrent()
+      blocks.push({ type: 'heading', level: headingMatch[1].length, text: headingMatch[2].trim() })
+      return
+    }
+
+    const boldHeadingMatch = line.match(/^\*\*(.+?)\*\*$/)
+    if (boldHeadingMatch) {
+      flushCurrent()
+      blocks.push({ type: 'subheading', text: boldHeadingMatch[1].trim() })
+      return
+    }
+
+    const routineMatch = isRoutineHeader(line)
+    if (routineMatch) {
+      flushCurrent()
+      current = { type: 'routine', title: stripMarkdown(line), items: [], description: '' }
+      return
+    }
+
+    const bulletMatch = line.match(/^[-*]\s+(.+)$/)
+    if (bulletMatch) {
+      if (current?.type === 'ul') {
+        current.items.push(bulletMatch[1].trim())
+      } else if (current?.type === 'routine') {
+        current.items.push(bulletMatch[1].trim())
+      } else {
+        flushCurrent()
+        current = { type: 'ul', items: [bulletMatch[1].trim()] }
+      }
+      return
+    }
+
+    const orderedMatch = line.match(/^\d+\.\s+(.+)$/)
+    if (orderedMatch) {
+      if (current?.type === 'ol') {
+        current.items.push(orderedMatch[1].trim())
+      } else if (current?.type === 'routine') {
+        current.items.push(orderedMatch[1].trim())
+      } else {
+        flushCurrent()
+        current = { type: 'ol', items: [orderedMatch[1].trim()] }
+      }
+      return
+    }
+
+    if (/youtube/i.test(line) || /search.*youtube/i.test(line)) {
+      flushCurrent()
+      blocks.push({ type: 'youtube', text: stripMarkdown(line) })
+      return
+    }
+
+    if (/^(milestone|week|phase)\b/i.test(line)) {
+      flushCurrent()
+      blocks.push({ type: 'milestone', text: stripMarkdown(line) })
+      return
+    }
+
+    if (current?.type === 'paragraph') {
+      current.text += ` ${line}`
+      return
+    }
+
+    if (current?.type === 'routine') {
+      current.description += `${line} `
+      return
+    }
+
+    flushCurrent()
+    current = { type: 'paragraph', text: line }
+  })
+
+  flushCurrent()
+  return blocks
+}
+
+const renderRoadmapBlocks = (blocks) =>
+  blocks.map((block, index) => {
+    switch (block.type) {
+      case 'heading':
+        return (
+          <h3
+            key={index}
+            className={`text-sm font-semibold ${block.level === 1 ? 'text-orange-500' : 'text-orange-400'} tracking-tight`}
+          >
+            {renderInlineText(stripMarkdown(block.text))}
+          </h3>
+        )
+      case 'subheading':
+        return (
+          <div
+            key={index}
+            className="rounded-3xl border-l-4 border-orange-400 bg-orange-50/60 px-4 py-3 text-sm font-semibold text-orange-700 dark:border-orange-500 dark:bg-orange-500/10 dark:text-orange-200"
+          >
+            {renderInlineText(stripMarkdown(block.text))}
+          </div>
+        )
+      case 'routine':
+        return (
+          <div
+            key={index}
+            className="rounded-3xl border border-[#E5E7EB] bg-[#FEF7EE] p-4 shadow-sm dark:border-dark-border dark:bg-[#181B1F]"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#B45309] dark:text-[#FBBF24]">Workout block</p>
+                <p className="mt-1 text-sm font-semibold text-zinc-900 dark:text-white">{renderInlineText(block.title)}</p>
+              </div>
+              <div className="h-10 w-1 rounded-full bg-orange-500" />
+            </div>
+            {block.description ? (
+              <p className="mb-3 text-sm leading-7 text-zinc-700 dark:text-zinc-300">{renderInlineText(stripMarkdown(block.description.trim()))}</p>
+            ) : null}
+            {block.items.length ? (
+              <div className="space-y-3">
+                {block.items.map((item, itemIndex) => (
+                  <div
+                    key={itemIndex}
+                    className="rounded-3xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm leading-7 text-zinc-700 shadow-sm dark:border-dark-border dark:bg-[#111827] dark:text-zinc-300"
+                  >
+                    <span className="mr-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-xs font-semibold text-orange-600 dark:bg-orange-500/10 dark:text-orange-300">
+                      {itemIndex + 1}
+                    </span>
+                    <span>{renderInlineText(stripMarkdown(item))}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )
+      case 'paragraph':
+        return (
+          <p key={index} className="text-sm leading-7 text-zinc-700 dark:text-zinc-300">
+            {renderInlineText(stripMarkdown(block.text))}
+          </p>
+        )
+      case 'ul':
+        return (
+          <ul key={index} className="space-y-3">
+            {block.items.map((item, itemIndex) => (
+              <li
+                key={itemIndex}
+                className="rounded-3xl border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-3 text-sm leading-7 text-zinc-700 dark:border-dark-border dark:bg-[#111827] dark:text-zinc-300"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-semibold text-orange-600 dark:bg-orange-500/10 dark:text-orange-300">
+                    •
+                  </span>
+                  <span>{renderInlineText(stripMarkdown(item))}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )
+      case 'ol':
+        return (
+          <ol key={index} className="space-y-3">
+            {block.items.map((item, itemIndex) => (
+              <li
+                key={itemIndex}
+                className="rounded-3xl border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-3 text-sm leading-7 text-zinc-700 dark:border-dark-border dark:bg-[#111827] dark:text-zinc-300"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-semibold text-orange-600 dark:bg-orange-500/10 dark:text-orange-300">
+                    {itemIndex + 1}
+                  </span>
+                  <span>{renderInlineText(stripMarkdown(item))}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )
+      case 'youtube':
+        return (
+          <div key={index} className="rounded-3xl border border-[#F59E0B]/20 bg-[#FFF7ED] p-4 text-sm text-[#92400E] dark:border-orange-500/20 dark:bg-[#3D2208] dark:text-[#FDD38D]">
+            <p className="font-semibold">YouTube search</p>
+            <p className="mt-1 leading-7">{block.text}</p>
+          </div>
+        )
+      case 'milestone':
+        return (
+          <div key={index} className="rounded-3xl border border-[#F97316]/20 bg-[#FFF4E5] p-4 text-sm text-[#92400E] dark:border-[#F97316]/30 dark:bg-[#3D1F08] dark:text-[#FCD34D]">
+            <p className="font-semibold">Milestone</p>
+            <p className="mt-1 leading-7">{block.text}</p>
+          </div>
+        )
+      default:
+        return null
+    }
+  })
+
 const parseRoadmapDetail = (roadmap) => {
   return roadmap?.mode === 'weekly' ? parseWeeklyRoadmap(roadmap.content) : parseSkillRoadmap(roadmap.content)
 }
@@ -581,7 +855,9 @@ const GoalRoadmap = () => {
                       </button>
                     </div>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300 line-clamp-4">{roadmap.content}</p>
+                  <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300 line-clamp-4">
+                    {stripMarkdown(roadmap.content).slice(0, 140)}{stripMarkdown(roadmap.content).length > 140 ? '…' : ''}
+                  </p>
                 </div>
               ))}
             </div>
@@ -608,9 +884,11 @@ const GoalRoadmap = () => {
           <div className="space-y-3">
             {roadmapSections.map((section, index) => (
               <details key={`${section.title}-${index}`} className="rounded-3xl border border-[#E5E7EB] bg-white p-4 dark:border-dark-border dark:bg-dark-bg">
-                <summary className="cursor-pointer text-sm font-semibold text-zinc-900 dark:text-white">{section.title}</summary>
+                <summary className="cursor-pointer text-sm font-semibold text-zinc-900 dark:text-white">{normalizeTitle(section.title)}</summary>
                 {section.body ? (
-                  <pre className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-300">{section.body}</pre>
+                  <div className="mt-3 space-y-4 break-words text-sm leading-7 text-zinc-700 dark:text-zinc-300">
+                    {renderRoadmapBlocks(parseRoadmapBody(section.body))}
+                  </div>
                 ) : (
                   <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">No detail available for this section.</p>
                 )}
@@ -661,12 +939,12 @@ const GoalRoadmap = () => {
                   className="rounded-3xl border border-[#E5E7EB] bg-white p-4 dark:border-dark-border dark:bg-dark-bg"
                 >
                   <summary className="cursor-pointer text-sm font-semibold text-zinc-900 dark:text-white">
-                    {section.title}
+                    {normalizeTitle(section.title)}
                   </summary>
                   {section.body ? (
-                    <pre className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                      {section.body}
-                    </pre>
+                    <div className="mt-3 space-y-4 break-words text-sm leading-7 text-zinc-700 dark:text-zinc-300">
+                      {renderRoadmapBlocks(parseRoadmapBody(section.body))}
+                    </div>
                   ) : (
                     <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
                       No detail available for this section.

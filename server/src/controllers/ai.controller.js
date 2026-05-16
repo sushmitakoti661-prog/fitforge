@@ -83,7 +83,9 @@ const generateAIResponse = async (prompt) => {
 const buildCoachPrompt = ({ workouts = [], userProfile = {} }) => `
 You are FitForge AI Coach.
 Provide short, practical advice for this athlete.
-Keep it concise and plain text.
+Use headings, bullet points, numbered steps, and small readable sections.
+Include workout-focused guidance like sets/reps, recovery tips, and easy-to-scan coaching cues.
+Keep it easy to read on mobile and avoid long dense paragraphs.
 
 Workouts (last 7 days): ${JSON.stringify(workouts)}
 User profile: ${JSON.stringify(userProfile)}
@@ -113,8 +115,8 @@ ${JSON.stringify(chatHistory)}
 
 Rules:
 - Respond like a real personal trainer texting their client
-- Be warm, direct, and specific to THEIR data
-- Keep responses concise — 2-4 sentences usually enough unless detailed plan needed
+- Use markdown-style headings, bullets, numbered lists, and short paragraphs
+- Make the guidance easy to scan on mobile and highlight key actions
 - If they report pain or injury, take it seriously and give safe alternatives
 - If they ask to change their plan, give a specific modified plan
 - Never be generic — always reference their actual workout history
@@ -122,7 +124,6 @@ Rules:
 
 User's message: ${message}
 `
-
 const coach = async (req, res) => {
   const { workouts = [], userProfile = {} } = req.body || {}
   
