@@ -4,6 +4,7 @@ import { addDoc, collection, getDocs, limit, orderBy, query, serverTimestamp } f
 import { db } from '../firebase/config'
 import useAuth from '../hooks/useAuth'
 import { sendChatMessage } from '../utils/apiService'
+import { createNotification, getNotificationPreferences } from '../utils/notificationService'
 
 const SUGGESTED_PROMPTS = [
   'What should I train today?',
@@ -189,6 +190,12 @@ const Chatbot = () => {
 
       setMessages(prev => [...prev, aiMessage])
       await saveMessage(aiMessage)
+
+      // Create notification for AI Coach tips
+      const prefs = getNotificationPreferences()
+      if (prefs.aiCoachUpdates && userId) {
+        await createNotification(userId, 'ai_coach', 'AI Coach replied', 'Your coach has sent you a message. Check the chat to see tips and guidance.')
+      }
     } catch (error) {
       console.error('Chat error:', error)
       const errorMessage = {

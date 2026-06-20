@@ -7,6 +7,7 @@ import { db } from '../firebase/config'
 import useAuth from '../hooks/useAuth'
 import useWorkouts from '../hooks/useWorkouts'
 import { calculateLongestStreak, calculateStreak } from '../utils/streakUtils'
+import { createNotification, getNotificationPreferences } from '../utils/notificationService'
 
 const activityTypes = ['Running', 'Cycling', 'Swimming', 'Walking', 'Other']
 const feelingOptions = [
@@ -286,8 +287,29 @@ const WorkoutLogger = () => {
       const allWorkouts = await getAllWorkoutsForStats()
       const newStreak = await updateUserProfileStats(allWorkouts)
 
+      // Create notifications based on user preferences
+      const prefs = getNotificationPreferences()
+      const userId = currentUser?.uid
+
+      if (prefs.workoutAlerts && userId) {
+        const workoutTitle = workoutType === 'cardio' ? 'Cardio logged' : 'Weight training logged'
+        const workoutMsg =
+          workoutType === 'cardio'
+            ? `Great work! You completed ${cardioForm.activityType.toLowerCase()}.`
+            : `Awesome session! ${weightForm.workoutName} complete.`
+        await createNotification(userId, 'workout', workoutTitle, workoutMsg)
+      }
+
       if ([7, 30, 50, 100].includes(newStreak) && previousStreak < newStreak) {
         setMilestone(newStreak)
+        if (prefs.streakAlerts && userId) {
+          await createNotification(
+            userId,
+            'streak',
+            `${newStreak}-day streak! 🔥`,
+            `You've built an incredible ${newStreak}-day streak. Keep it up!`
+          )
+        }
       }
 
       await refreshWorkouts()

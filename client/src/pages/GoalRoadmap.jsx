@@ -3,6 +3,7 @@ import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, serverTime
 import { db } from '../firebase/config'
 import useAuth from '../hooks/useAuth'
 import { generateRoadmap } from '../utils/apiService'
+import { createNotification, getNotificationPreferences } from '../utils/notificationService'
 
 const MODE_OPTIONS = [
   {
@@ -528,6 +529,18 @@ const GoalRoadmap = () => {
       const roadmap = await generateRoadmap(payload)
       setRoadmapText(roadmap || 'No roadmap returned yet.')
       setSuccessMessage('Roadmap generated. Review it below and save it to your profile.')
+
+      // Create notification
+      const prefs = getNotificationPreferences()
+      if (prefs.aiCoachUpdates && userId) {
+        const modeLabel = activeMode === 'skill' ? 'Skill Goal' : 'Weekly Plan'
+        await createNotification(
+          userId,
+          'ai_coach',
+          `${modeLabel} roadmap ready`,
+          `Your AI-generated training roadmap is ready to review and save.`
+        )
+      }
     } catch (error) {
       console.error('Roadmap generation failed:', error)
       setErrorMessage(error.message || 'Failed to generate roadmap. Please try again.')
@@ -559,6 +572,19 @@ const GoalRoadmap = () => {
       }
       await addDoc(collection(db, `users/${userId}/roadmaps`), payload)
       setSuccessMessage('Roadmap saved to your profile.')
+
+      // Create notification
+      const prefs = getNotificationPreferences()
+      if (prefs.aiCoachUpdates && userId) {
+        const modeLabel = activeMode === 'skill' ? 'Skill Goal' : 'Weekly Plan'
+        await createNotification(
+          userId,
+          'roadmap',
+          `${modeLabel} saved`,
+          `Your training roadmap has been saved and is ready to follow.`
+        )
+      }
+
       await loadSavedRoadmaps()
     } catch (error) {
       console.error('Save roadmap failed:', error)

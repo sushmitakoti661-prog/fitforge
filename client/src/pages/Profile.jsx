@@ -3,6 +3,7 @@ import { doc, getDoc } from 'firebase/firestore'
 import useAuth from '../hooks/useAuth'
 import useWorkouts from '../hooks/useWorkouts'
 import { db } from '../firebase/config'
+import { getNotificationPreferences, setNotificationPreferences } from '../utils/notificationService'
 
 const Profile = () => {
   const { currentUser, logout } = useAuth()
@@ -10,6 +11,7 @@ const Profile = () => {
   const [profile, setProfile] = useState(null)
   const [theme, setTheme] = useState(() => localStorage.getItem('fitforge-theme') || 'dark')
   const [units, setUnits] = useState(() => localStorage.getItem('fitforge-units') || 'km')
+  const [notificationPrefs, setNotificationPrefs] = useState(() => getNotificationPreferences())
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
   const fallbackName = currentUser?.email?.split('@')[0] || 'Athlete'
@@ -51,6 +53,12 @@ const Profile = () => {
     setUnits(newUnits)
     localStorage.setItem('fitforge-units', newUnits)
   }, [units])
+
+  const toggleNotificationPref = useCallback((pref) => {
+    const updated = { ...notificationPrefs, [pref]: !notificationPrefs[pref] }
+    setNotificationPrefs(updated)
+    setNotificationPreferences(updated)
+  }, [notificationPrefs])
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -171,13 +179,72 @@ const Profile = () => {
               {units}
             </button>
           </div>
-          <div className="rounded-3xl border border-[#E4E4E7] bg-[#F1F1F1] p-4 transition-colors duration-300 dark:border-dark-border dark:bg-dark-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold">Notifications</p>
-                <p className="text-sm text-[#6B7280] dark:text-zinc-400">Workout reminders and tips</p>
+          <div className="space-y-3 rounded-3xl border border-[#E4E4E7] bg-[#F1F1F1] p-4 transition-colors duration-300 dark:border-dark-border dark:bg-dark-card">
+            <div>
+              <p className="font-semibold">Notifications</p>
+              <p className="text-sm text-[#6B7280] dark:text-zinc-400">Customize your alerts</p>
+            </div>
+            <div className="space-y-3 border-t border-[#E4E4E7] pt-3 dark:border-dark-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">Workout Alerts</p>
+                  <p className="text-xs text-[#6B7280] dark:text-zinc-400">When you log a workout</p>
+                </div>
+                <button
+                  onClick={() => toggleNotificationPref('workoutAlerts')}
+                  className={`relative h-6 w-11 rounded-full transition ${
+                    notificationPrefs.workoutAlerts ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-600'
+                  }`}
+                  role="switch"
+                  aria-checked={notificationPrefs.workoutAlerts}
+                >
+                  <span
+                    className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
+                      notificationPrefs.workoutAlerts ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
               </div>
-              <span className="text-sm text-[#6B7280] dark:text-zinc-400">Coming soon</span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">Streak Alerts</p>
+                  <p className="text-xs text-[#6B7280] dark:text-zinc-400">Milestone achievements</p>
+                </div>
+                <button
+                  onClick={() => toggleNotificationPref('streakAlerts')}
+                  className={`relative h-6 w-11 rounded-full transition ${
+                    notificationPrefs.streakAlerts ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-600'
+                  }`}
+                  role="switch"
+                  aria-checked={notificationPrefs.streakAlerts}
+                >
+                  <span
+                    className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
+                      notificationPrefs.streakAlerts ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">AI Coach Updates</p>
+                  <p className="text-xs text-[#6B7280] dark:text-zinc-400">Roadmaps and coaching tips</p>
+                </div>
+                <button
+                  onClick={() => toggleNotificationPref('aiCoachUpdates')}
+                  className={`relative h-6 w-11 rounded-full transition ${
+                    notificationPrefs.aiCoachUpdates ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-600'
+                  }`}
+                  role="switch"
+                  aria-checked={notificationPrefs.aiCoachUpdates}
+                >
+                  <span
+                    className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
+                      notificationPrefs.aiCoachUpdates ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>
