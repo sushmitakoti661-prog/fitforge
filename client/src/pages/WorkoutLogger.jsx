@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Timestamp, addDoc, collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
+import { Timestamp, addDoc, collection, doc, getDoc, getDocs, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore'
 import { Link } from 'react-router-dom'
 import WorkoutCard from '../components/ui/WorkoutCard'
 import StreakCelebrationOverlay from '../components/ui/StreakCelebrationOverlay'
@@ -8,6 +8,7 @@ import useAuth from '../hooks/useAuth'
 import useWorkouts from '../hooks/useWorkouts'
 import { calculateLongestStreak, calculateStreak } from '../utils/streakUtils'
 import { createNotification, getNotificationPreferences } from '../utils/notificationService'
+import { getAIDailyTip } from '../utils/apiService'
 
 const activityTypes = ['Running', 'Cycling', 'Swimming', 'Walking', 'Other']
 const feelingOptions = [
@@ -315,6 +316,42 @@ const WorkoutLogger = () => {
       await refreshWorkouts()
       setSubmitMessage('Workout saved successfully.')
       setShowCoachLink(true)
+
+      // Invalidate AI cache by deleting docs - forces regeneration on next page load
+      try {
+        const userId = currentUser?.uid
+        if (userId) {
+          const today = new Date()
+          const year = today.getFullYear()
+          const month = String(today.getMonth() + 1).padStart(2, '0')
+          const day = String(today.getDate()).padStart(2, '0')
+          const todayKey = `${year}-${month}-${day}`
+
+          // Delete daily tip cache for today
+          try {
+            await deleteDoc(doc(db, 'users', userId, 'dailyTips', todayKey))
+            console.log('[AI] Cache invalidated: deleted dailyTips/' + todayKey)
+          } catch (err) {
+            console.warn('[WorkoutLogger] Daily tip cache deletion (not found is OK):', err.code)
+          }
+
+          // Calculate current week ID and delete weekly summary cache
+          const refDate = new Date()
+          const yearVal = refDate.getFullYear()
+          const onejan = new Date(yearVal, 0, 1)
+          const week = Math.ceil((((refDate - onejan) / 86400000) + onejan.getDay() + 1) / 7)
+          const currentWeekId = `${yearVal}-W${String(week).padStart(2, '0')}`
+
+          try {
+            await deleteDoc(doc(db, 'users', userId, 'weeklySummaries', currentWeekId))
+            console.log('[AI] Cache invalidated: deleted weeklySummaries/' + currentWeekId)
+          } catch (err) {
+            console.warn('[WorkoutLogger] Weekly summary cache deletion (not found is OK):', err.code)
+          }
+        }
+      } catch (err) {
+        console.warn('[WorkoutLogger] Cache invalidation error:', err)
+      }
     } catch (error) {
       setErrorMessage(error.message || 'Unable to save workout.')
       setShowCoachLink(false)

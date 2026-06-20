@@ -22,7 +22,12 @@ const postJson = async (path, payload) => {
 
 export const getAICoachAdvice = async (workouts, userProfile = {}) => {
   const data = await postJson('/api/ai/coach', { workouts, userProfile })
-  return data.advice
+  return data
+}
+
+export const getAIDailyTip = async (workout, userProfile = {}) => {
+  const data = await postJson('/api/ai/daily-tip', { workout, userProfile })
+  return data
 }
 
 export const generateRoadmap = async (goalData) => {

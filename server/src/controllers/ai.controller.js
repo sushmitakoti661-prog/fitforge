@@ -80,12 +80,36 @@ const generateAIResponse = async (prompt) => {
   }
 }
 
+const buildDailyTipPrompt = ({ workout = {}, userProfile = {} }) => `
+You are FitForge AI Coach.
+Create a concise daily coaching tip based only on the single most recent workout.
+Use 2-4 short paragraphs and keep the advice under 150 words.
+Focus on:
+- the workout completed today
+- effort level
+- recovery reminder
+- hydration reminder
+- motivational coaching
+Use headings, bullet points, and short readable sections.
+Do not analyze the last 7 days.
+Do not generate a weekly summary.
+Do not create a progression plan.
+Do not generate workout programming.
+Do not add detailed exercise prescriptions.
+Do not produce long-form coaching sections.
+
+Workout: ${JSON.stringify(workout)}
+User profile: ${JSON.stringify(userProfile)}
+`
+
 const buildCoachPrompt = ({ workouts = [], userProfile = {} }) => `
 You are FitForge AI Coach.
-Provide short, practical advice for this athlete.
-Use headings, bullet points, numbered steps, and small readable sections.
-Include workout-focused guidance like sets/reps, recovery tips, and easy-to-scan coaching cues.
-Keep it easy to read on mobile and avoid long dense paragraphs.
+Create a detailed weekly summary of the athlete's training from the last 7 days.
+Use headings, bullet points, numbered lists, and short readable sections.
+Highlight recovery, progress, and overall weekly trends.
+Do not produce a short daily coaching tip.
+Do not generate workout progression plans or next session programming.
+Do not focus on a single workout only.
 
 Workouts (last 7 days): ${JSON.stringify(workouts)}
 User profile: ${JSON.stringify(userProfile)}
@@ -126,17 +150,96 @@ User's message: ${message}
 `
 const coach = async (req, res) => {
   const { workouts = [], userProfile = {} } = req.body || {}
-  
 
   const prompt = buildCoachPrompt({ workouts, userProfile })
   const result = await generateAIResponse(prompt)
 
-  
+  // If the AI service fails, return a local weekly summary based on workout data
+  if (!result.ok) {
+    console.warn('[AI Fallback] Using local workout-based advice for weekly summary')
+    const fallback = buildLocalWeeklySummary(workouts)
+    return res.status(200).json({
+      advice: fallback,
+      source: 'fallback',
+      offlineFallback: true,
+    })
+  }
 
   return res.status(200).json({
     advice: result.text,
     source: result.source,
   })
+}
+
+const dailyTip = async (req, res) => {
+  const { workout = {}, userProfile = {} } = req.body || {}
+
+  const prompt = buildDailyTipPrompt({ workout, userProfile })
+  const result = await generateAIResponse(prompt)
+
+  // If the AI service fails, return a concise local daily tip based on the latest workout
+  if (!result.ok) {
+    console.warn('[AI Fallback] Using local workout-based advice for daily tip')
+    const fallback = buildLocalDailyTip(workout)
+    return res.status(200).json({
+      advice: fallback,
+      source: 'fallback',
+      offlineFallback: true,
+    })
+  }
+
+  return res.status(200).json({
+    advice: result.text,
+    source: result.source,
+  })
+}
+
+// Local fallback generators (keep simple and deterministic so UI always shows helpful text)
+const buildLocalDailyTip = (workout = {}) => {
+  if (!workout || Object.keys(workout).length === 0) {
+    return 'Nice work! Log a workout to receive a short daily coaching tip based on that session.'
+  }
+
+  const name = workout.name || workout.type || 'your workout'
+  const effort = workout.effort || workout.intensity || workout.perceivedEffort || 'moderate'
+  const minutes = workout.duration ? `${workout.duration} min` : ''
+
+  const lines = []
+  lines.push(`Nice work completing ${name}${minutes ? ` (${minutes})` : ''} today. Your effort level was ${effort}, which supports consistent progress.`)
+  lines.push('\nRecovery Focus:\n• Hydrate well\n• Prioritize protein\n• Gentle stretching')
+  lines.push('\nSmall wins repeated consistently create big results. See you at the next session!')
+
+  return lines.join('\n\n')
+}
+
+const buildLocalWeeklySummary = (workouts = []) => {
+  const total = workouts.length
+  let totalCardio = 0
+  const muscleSet = new Set()
+  const trainedDays = new Set()
+
+  workouts.forEach((w) => {
+    if (w.type === 'cardio') totalCardio += Number(w.distance) || 0
+    ;(w.muscleGroups || []).forEach(g => muscleSet.add(g))
+    if (w.date) {
+      const d = new Date(w.date)
+      if (!isNaN(d.getTime())) trainedDays.add(d.toISOString().slice(0,10))
+    }
+  })
+
+  const muscleGroups = Array.from(muscleSet)
+  const consistency = `${trainedDays.size} days trained`
+
+  const parts = []
+  parts.push(`# Weekly Summary`)
+  parts.push(`- Total workouts: ${total}`)
+  parts.push(`- Total cardio distance: ${totalCardio.toFixed(2)} km`)
+  parts.push(`- Muscle groups trained: ${muscleGroups.length ? muscleGroups.join(', ') : 'None recorded'}`)
+  parts.push(`- Consistency: ${consistency}`)
+
+  parts.push(`\nKeep up the momentum — small, steady steps lead to progress.`)
+
+  return parts.join('\n')
 }
 
 const roadmap = async (req, res) => {
@@ -169,4 +272,4 @@ const chat = async (req, res) => {
   })
 }
 
-module.exports = { generateAIResponse, coach, roadmap, chat }
+module.exports = { generateAIResponse, coach, dailyTip, roadmap, chat }
