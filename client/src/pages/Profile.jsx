@@ -192,15 +192,15 @@ const Profile = () => {
                 </div>
                 <button
                   onClick={() => toggleNotificationPref('workoutAlerts')}
-                  className={`relative h-6 w-11 rounded-full transition ${
+                  className={`relative h-6 w-12 overflow-hidden rounded-full transition-colors duration-200 ${
                     notificationPrefs.workoutAlerts ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-600'
                   }`}
                   role="switch"
                   aria-checked={notificationPrefs.workoutAlerts}
                 >
                   <span
-                    className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
-                      notificationPrefs.workoutAlerts ? 'translate-x-6' : 'translate-x-1'
+                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                      notificationPrefs.workoutAlerts ? 'translate-x-6' : 'translate-x-0'
                     }`}
                   />
                 </button>
@@ -212,15 +212,15 @@ const Profile = () => {
                 </div>
                 <button
                   onClick={() => toggleNotificationPref('streakAlerts')}
-                  className={`relative h-6 w-11 rounded-full transition ${
+                  className={`relative h-6 w-12 overflow-hidden rounded-full transition-colors duration-200 ${
                     notificationPrefs.streakAlerts ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-600'
                   }`}
                   role="switch"
                   aria-checked={notificationPrefs.streakAlerts}
                 >
                   <span
-                    className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
-                      notificationPrefs.streakAlerts ? 'translate-x-6' : 'translate-x-1'
+                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                      notificationPrefs.streakAlerts ? 'translate-x-6' : 'translate-x-0'
                     }`}
                   />
                 </button>
@@ -232,15 +232,15 @@ const Profile = () => {
                 </div>
                 <button
                   onClick={() => toggleNotificationPref('aiCoachUpdates')}
-                  className={`relative h-6 w-11 rounded-full transition ${
+                  className={`relative h-6 w-12 overflow-hidden rounded-full transition-colors duration-200 ${
                     notificationPrefs.aiCoachUpdates ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-600'
                   }`}
                   role="switch"
                   aria-checked={notificationPrefs.aiCoachUpdates}
                 >
                   <span
-                    className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
-                      notificationPrefs.aiCoachUpdates ? 'translate-x-6' : 'translate-x-1'
+                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                      notificationPrefs.aiCoachUpdates ? 'translate-x-6' : 'translate-x-0'
                     }`}
                   />
                 </button>

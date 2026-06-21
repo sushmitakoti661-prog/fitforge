@@ -10,13 +10,26 @@ import { calculateLongestStreak, calculateStreak } from '../utils/streakUtils'
 import { createNotification, getNotificationPreferences } from '../utils/notificationService'
 import { getAIDailyTip } from '../utils/apiService'
 
-const activityTypes = ['Running', 'Cycling', 'Swimming', 'Walking', 'Other']
+const activityTypes = ['Running', 'Cycling', 'Swimming', 'Walking', 'Custom Activity']
 const feelingOptions = [
   { id: 'easy', label: 'Easy 😊' },
   { id: 'moderate', label: 'Moderate 💪' },
   { id: 'hard', label: 'Hard 🔥' },
 ]
-const muscleGroupOptions = ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core', 'Full Body']
+const muscleGroupOptions = [
+  'Chest',
+  'Back',
+  'Shoulders',
+  'Arms',
+  'Legs',
+  'Core',
+  'Glutes',
+  'Calves',
+  'Forearms',
+  'Traps',
+  'Full Body',
+  'Custom Muscle Group',
+]
 const exerciseSuggestions = [
   'Bench Press',
   'Incline Bench Press',
@@ -61,7 +74,7 @@ const getTodayInputDate = () => {
   return `${year}-${month}-${day}`
 }
 
-const createEmptyExercise = () => ({ name: '', sets: [{ reps: '', weight: '' }] })
+const createEmptyExercise = () => ({ selectedExercise: '', name: '', customName: '', sets: [{ reps: '', weight: '' }] })
 
 const WorkoutLogger = () => {
   const { currentUser } = useAuth()
@@ -76,6 +89,7 @@ const WorkoutLogger = () => {
 
   const [cardioForm, setCardioForm] = useState({
     activityType: 'Running',
+    customActivityName: '',
     unit: 'km',
     distance: '',
     duration: '',
@@ -107,6 +121,12 @@ const WorkoutLogger = () => {
   }
 
   const toggleMuscleGroup = (muscleGroup) => {
+    // Special case: show custom input when toggling the placeholder option
+    if (muscleGroup === 'Custom Muscle Group') {
+      setShowCustomMuscleInput((v) => !v)
+      return
+    }
+
     setWeightForm((prev) => {
       const exists = prev.muscleGroups.includes(muscleGroup)
       const nextGroups = exists ? prev.muscleGroups.filter((item) => item !== muscleGroup) : [...prev.muscleGroups, muscleGroup]
@@ -114,10 +134,41 @@ const WorkoutLogger = () => {
     })
   }
 
+  const [showCustomMuscleInput, setShowCustomMuscleInput] = useState(false)
+  const [customMuscleInput, setCustomMuscleInput] = useState('')
+
+  const addCustomMuscleGroup = () => {
+    const name = (customMuscleInput || '').trim()
+    if (!name) {
+      setErrorMessage('Please enter a muscle group name.')
+      return
+    }
+    setWeightForm((prev) => {
+      if (prev.muscleGroups.includes(name)) return prev
+      return { ...prev, muscleGroups: [...prev.muscleGroups, name] }
+    })
+    setCustomMuscleInput('')
+    setShowCustomMuscleInput(false)
+    setErrorMessage('')
+  }
+
+  const updateExerciseSelection = (exerciseIndex, selectedExercise) => {
+    setWeightForm((prev) => {
+      const nextExercises = prev.exercises.map((exercise, index) => {
+        if (index !== exerciseIndex) return exercise
+        if (selectedExercise === 'Custom Exercise') {
+          return { ...exercise, selectedExercise, name: '', customName: '' }
+        }
+        return { ...exercise, selectedExercise, name: selectedExercise, customName: '' }
+      })
+      return { ...prev, exercises: nextExercises }
+    })
+  }
+
   const updateExerciseName = (exerciseIndex, value) => {
     setWeightForm((prev) => {
       const nextExercises = prev.exercises.map((exercise, index) =>
-        index === exerciseIndex ? { ...exercise, name: value } : exercise,
+        index === exerciseIndex ? { ...exercise, name: value, customName: value } : exercise,
       )
       return { ...prev, exercises: nextExercises }
     })
@@ -156,10 +207,18 @@ const WorkoutLogger = () => {
     if (!Number.isFinite(duration) || duration <= 0) throw new Error('Duration must be greater than zero.')
     if (!Number.isFinite(paceValue) || paceValue <= 0) throw new Error('Pace could not be calculated.')
 
+    const activityType = cardioForm.activityType === 'Custom Activity'
+      ? cardioForm.customActivityName.trim()
+      : cardioForm.activityType
+
+    if (cardioForm.activityType === 'Custom Activity' && !cardioForm.customActivityName.trim()) {
+      throw new Error('Please enter a custom activity name.')
+    }
+
     const workoutPayload = {
       type: 'cardio',
       date: toLocalMidnightTimestamp(cardioForm.date),
-      activityType: cardioForm.activityType,
+      activityType,
       distance: Number(distanceKm.toFixed(3)),
       duration: Number(duration.toFixed(2)),
       pace: Number(paceValue.toFixed(4)),
@@ -187,7 +246,12 @@ const WorkoutLogger = () => {
 
     const normalizedExercises = weightForm.exercises.map((exercise) => {
       const name = exercise.name.trim()
-      if (!name) throw new Error('Each exercise must have a name.')
+      if (!name) {
+        if (exercise.selectedExercise === 'Custom Exercise') {
+          throw new Error('Each custom exercise must have a name.')
+        }
+        throw new Error('Each exercise must have a name.')
+      }
 
       const normalizedSets = exercise.sets.map((setItem) => {
         const reps = Number(setItem.reps)
@@ -400,7 +464,14 @@ const WorkoutLogger = () => {
               <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6B7280] dark:text-zinc-400">Activity Type</span>
               <select
                 value={cardioForm.activityType}
-                onChange={(event) => setCardioForm((prev) => ({ ...prev, activityType: event.target.value }))}
+                onChange={(event) => {
+                  const selected = event.target.value
+                  setCardioForm((prev) => ({
+                    ...prev,
+                    activityType: selected,
+                    customActivityName: selected === 'Custom Activity' ? prev.customActivityName : '',
+                  }))
+                }}
                 className="h-11 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 text-sm outline-none focus:border-primary dark:border-dark-border dark:bg-dark-bg"
               >
                 {activityTypes.map((activity) => (
@@ -410,6 +481,19 @@ const WorkoutLogger = () => {
                 ))}
               </select>
             </label>
+
+            {cardioForm.activityType === 'Custom Activity' ? (
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6B7280] dark:text-zinc-400">Custom Activity Name</span>
+                <input
+                  type="text"
+                  value={cardioForm.customActivityName}
+                  onChange={(event) => setCardioForm((prev) => ({ ...prev, customActivityName: event.target.value }))}
+                  className="h-11 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 text-sm outline-none focus:border-primary dark:border-dark-border dark:bg-dark-bg"
+                  placeholder="e.g. Hiking"
+                />
+              </label>
+            ) : null}
 
             <div className="grid grid-cols-3 gap-3">
               <label className="col-span-2 block space-y-1">
@@ -529,7 +613,43 @@ const WorkoutLogger = () => {
                     </button>
                   )
                 })}
+
+                {/* Render any custom muscle groups the user has added (not part of the preset list) */}
+                {weightForm.muscleGroups
+                  .filter((g) => !muscleGroupOptions.includes(g))
+                  .map((customGroup) => (
+                    <button
+                      key={customGroup}
+                      type="button"
+                      onClick={() => toggleMuscleGroup(customGroup)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        'border-primary bg-primary text-white'
+                      }`}
+                    >
+                      {customGroup}
+                    </button>
+                  ))}
               </div>
+
+              {/* Custom muscle group input */}
+              {showCustomMuscleInput ? (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    type="text"
+                    value={customMuscleInput}
+                    onChange={(e) => setCustomMuscleInput(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 text-sm outline-none focus:border-primary dark:border-dark-border dark:bg-dark-bg"
+                    placeholder="e.g. Rear Delts"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomMuscleGroup}
+                    className="h-11 rounded-xl border border-primary px-3 text-sm font-semibold text-primary transition hover:bg-primary hover:text-white"
+                  >
+                    Add
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-3">
@@ -538,17 +658,37 @@ const WorkoutLogger = () => {
                 <div key={`exercise-${exerciseIndex}`} className="rounded-xl border border-[#E4E4E7] bg-white p-3 dark:border-dark-border dark:bg-dark-bg">
                   <label className="block space-y-1">
                     <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6B7280] dark:text-zinc-400">
-                      Exercise Name
+                      Exercise
                     </span>
-                    <input
-                      type="text"
-                      list="exercise-suggestion-list"
-                      value={exercise.name}
-                      onChange={(event) => updateExerciseName(exerciseIndex, event.target.value)}
-                      className="h-10 w-full rounded-lg border border-[#E4E4E7] bg-white px-3 text-sm outline-none focus:border-primary dark:border-dark-border dark:bg-dark-card"
-                      placeholder="Start typing exercise name"
-                    />
+                    <select
+                      value={exercise.selectedExercise}
+                      onChange={(event) => updateExerciseSelection(exerciseIndex, event.target.value)}
+                      className="h-11 w-full rounded-lg border border-[#E4E4E7] bg-white px-3 text-sm outline-none focus:border-primary dark:border-dark-border dark:bg-dark-card"
+                    >
+                      <option value="">Select exercise</option>
+                      {exerciseSuggestions.map((suggestion) => (
+                        <option key={suggestion} value={suggestion}>
+                          {suggestion}
+                        </option>
+                      ))}
+                      <option value="Custom Exercise">Custom Exercise</option>
+                    </select>
                   </label>
+
+                  {exercise.selectedExercise === 'Custom Exercise' ? (
+                    <label className="block space-y-1">
+                      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6B7280] dark:text-zinc-400">
+                        Custom Exercise Name
+                      </span>
+                      <input
+                        type="text"
+                        value={exercise.name}
+                        onChange={(event) => updateExerciseName(exerciseIndex, event.target.value)}
+                        className="h-10 w-full rounded-lg border border-[#E4E4E7] bg-white px-3 text-sm outline-none focus:border-primary dark:border-dark-border dark:bg-dark-card"
+                        placeholder="Enter custom exercise name"
+                      />
+                    </label>
+                  ) : null}
 
                   <div className="mt-3 space-y-2">
                     {exercise.sets.map((setItem, setIndex) => (
