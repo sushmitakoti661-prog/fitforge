@@ -11,3 +11,4 @@ server/dist/
 *.log
 client/.env
 server/.env
+fitforge-private/
