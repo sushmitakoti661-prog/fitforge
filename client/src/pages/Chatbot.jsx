@@ -13,6 +13,9 @@ const SUGGESTED_PROMPTS = [
   'Change my plan, I have knee pain',
 ]
 
+const CHAT_UNAVAILABLE_MESSAGE = 'FitForge Coach is currently busy. Please try again in a few minutes.'
+const API_FALLBACK_MESSAGE = 'AI response is temporarily unavailable. Please try again shortly.'
+
 const formatTimestamp = (date) => {
   return new Intl.DateTimeFormat('en-US', {
     hour: 'numeric',
@@ -184,7 +187,7 @@ const Chatbot = () => {
       const aiMessage = {
         id: `msg-${++messageIdRef.current}`,
         type: 'ai',
-        content: reply,
+        content: reply === API_FALLBACK_MESSAGE ? CHAT_UNAVAILABLE_MESSAGE : reply,
         timestamp: new Date(),
       }
 
@@ -201,7 +204,7 @@ const Chatbot = () => {
       const errorMessage = {
         id: `msg-${++messageIdRef.current}`,
         type: 'ai',
-        content: 'Sorry, I\'m having trouble connecting right now. Please try again in a moment.',
+        content: CHAT_UNAVAILABLE_MESSAGE,
         timestamp: new Date(),
       }
       setMessages(prev => [...prev, errorMessage])
