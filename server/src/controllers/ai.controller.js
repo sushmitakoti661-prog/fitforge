@@ -83,6 +83,7 @@ const generateAIResponse = async (prompt) => {
 const buildDailyTipPrompt = ({ workout = {}, userProfile = {} }) => `
 You are FitForge AI Coach.
 Create a concise daily coaching tip based only on the single most recent workout.
+The preferred distance unit is ${userProfile.distanceUnit || 'km'}. All distance values in the workout already use that unit. Always show that exact unit after distance values.
 Use 2-4 short paragraphs and keep the advice under 150 words.
 Focus on:
 - the workout completed today
@@ -105,6 +106,7 @@ User profile: ${JSON.stringify(userProfile)}
 const buildCoachPrompt = ({ workouts = [], userProfile = {} }) => `
 You are FitForge AI Coach.
 Create a detailed weekly summary of the athlete's training from the last 7 days.
+The preferred distance unit is ${userProfile.distanceUnit || 'km'}. All cardio distance values already use that unit. Always show that exact unit after distance totals.
 Use headings, bullet points, numbered lists, and short readable sections.
 Highlight recovery, progress, and overall weekly trends.
 Do not produce a short daily coaching tip.
@@ -157,7 +159,7 @@ const coach = async (req, res) => {
   // If the AI service fails, return a local weekly summary based on workout data
   if (!result.ok) {
     console.warn('[AI Fallback] Using local workout-based advice for weekly summary')
-    const fallback = buildLocalWeeklySummary(workouts)
+    const fallback = buildLocalWeeklySummary(workouts, userProfile.distanceUnit)
     return res.status(200).json({
       advice: fallback,
       source: 'fallback',
@@ -180,7 +182,7 @@ const dailyTip = async (req, res) => {
   // If the AI service fails, return a concise local daily tip based on the latest workout
   if (!result.ok) {
     console.warn('[AI Fallback] Using local workout-based advice for daily tip')
-    const fallback = buildLocalDailyTip(workout)
+    const fallback = buildLocalDailyTip(workout, userProfile.distanceUnit)
     return res.status(200).json({
       advice: fallback,
       source: 'fallback',
@@ -195,7 +197,7 @@ const dailyTip = async (req, res) => {
 }
 
 // Local fallback generators (keep simple and deterministic so UI always shows helpful text)
-const buildLocalDailyTip = (workout = {}) => {
+const buildLocalDailyTip = (workout = {}, distanceUnit = 'km') => {
   if (!workout || Object.keys(workout).length === 0) {
     return 'Nice work! Log a workout to receive a short daily coaching tip based on that session.'
   }
@@ -203,16 +205,19 @@ const buildLocalDailyTip = (workout = {}) => {
   const name = workout.name || workout.type || 'your workout'
   const effort = workout.effort || workout.intensity || workout.perceivedEffort || 'moderate'
   const minutes = workout.duration ? `${workout.duration} min` : ''
+  const distance = workout.type === 'cardio' && workout.distance
+    ? ` covering ${Number(workout.distance).toFixed(2)} ${distanceUnit}`
+    : ''
 
   const lines = []
-  lines.push(`Nice work completing ${name}${minutes ? ` (${minutes})` : ''} today. Your effort level was ${effort}, which supports consistent progress.`)
+  lines.push(`Nice work completing ${name}${minutes ? ` (${minutes})` : ''}${distance} today. Your effort level was ${effort}, which supports consistent progress.`)
   lines.push('\nRecovery Focus:\n• Hydrate well\n• Prioritize protein\n• Gentle stretching')
   lines.push('\nSmall wins repeated consistently create big results. See you at the next session!')
 
   return lines.join('\n\n')
 }
 
-const buildLocalWeeklySummary = (workouts = []) => {
+const buildLocalWeeklySummary = (workouts = [], distanceUnit = 'km') => {
   const total = workouts.length
   let totalCardio = 0
   const muscleSet = new Set()
@@ -233,7 +238,7 @@ const buildLocalWeeklySummary = (workouts = []) => {
   const parts = []
   parts.push(`# Weekly Summary`)
   parts.push(`- Total workouts: ${total}`)
-  parts.push(`- Total cardio distance: ${totalCardio.toFixed(2)} km`)
+  parts.push(`- Total cardio distance: ${totalCardio.toFixed(2)} ${distanceUnit}`)
   parts.push(`- Muscle groups trained: ${muscleGroups.length ? muscleGroups.join(', ') : 'None recorded'}`)
   parts.push(`- Consistency: ${consistency}`)
 

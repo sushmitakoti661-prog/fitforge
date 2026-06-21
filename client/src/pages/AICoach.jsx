@@ -6,6 +6,7 @@ import useAuth from '../hooks/useAuth'
 import { getAICoachAdvice, getAIDailyTip } from '../utils/apiService'
 
 const WEEK_DAYS = 7
+const MILES_PER_KM = 0.621371
 
 const toDate = (value) => {
   if (!value) return null
@@ -20,9 +21,15 @@ const normalizeWorkout = (workout) => ({
   createdAt: toDate(workout.createdAt)?.toISOString() || null,
 })
 
+const convertDistanceFromKm = (distance, distanceUnit) => {
+  const distanceKm = Number(distance) || 0
+  return distanceUnit === 'miles' ? distanceKm * MILES_PER_KM : distanceKm
+}
+
 
 const AICoach = () => {
   const { currentUser } = useAuth()
+  const distanceUnit = localStorage.getItem('fitforge-units') === 'miles' ? 'miles' : 'km'
   const [workouts, setWorkouts] = useState([])
   const [dailyTip, setDailyTip] = useState('')
   const [weeklySummaryText, setWeeklySummaryText] = useState('')
@@ -80,8 +87,11 @@ const AICoach = () => {
       })))
 
       setWorkouts(sevenDaysWorkouts)
-      const normalizedWorkouts = sevenDaysWorkouts.map(normalizeWorkout)
-      const latestWorkout = normalizedWorkouts[0] || null
+      const normalizedWorkouts = sevenDaysWorkouts.map(normalizeWorkout).map((workout) => (
+        workout.type === 'cardio'
+          ? { ...workout, distance: Number(convertDistanceFromKm(workout.distance, distanceUnit).toFixed(2)), distanceUnit }
+          : workout
+      ))
 
 
   // DAILY TIP: Cache key should always be today's date
@@ -122,11 +132,14 @@ const AICoach = () => {
               name: normalizedLatest.name || normalizedLatest.activityType || '',
               effort: normalizedLatest.effort || normalizedLatest.feeling || '',
               duration: normalizedLatest.duration || null,
-              distance: normalizedLatest.distance || null,
+              distance: normalizedLatest.type === 'cardio'
+                ? Number(convertDistanceFromKm(normalizedLatest.distance, distanceUnit).toFixed(2))
+                : null,
+              distanceUnit,
               date: normalizedLatest.date,
             }
             
-            const dailyRes = await getAIDailyTip(payload, { userId: currentUser.uid })
+            const dailyRes = await getAIDailyTip(payload, { userId: currentUser.uid, distanceUnit })
             const adviceText = dailyRes?.advice || ''
             setDailyTip(adviceText)
             setDailyOffline(Boolean(dailyRes?.offlineFallback || dailyRes?.source === 'fallback'))
@@ -163,11 +176,14 @@ const AICoach = () => {
             name: normalizedLatest.name || normalizedLatest.activityType || '',
             effort: normalizedLatest.effort || normalizedLatest.feeling || '',
             duration: normalizedLatest.duration || null,
-            distance: normalizedLatest.distance || null,
+            distance: normalizedLatest.type === 'cardio'
+              ? Number(convertDistanceFromKm(normalizedLatest.distance, distanceUnit).toFixed(2))
+              : null,
+            distanceUnit,
             date: normalizedLatest.date,
           }
           
-          const dailyRes = await getAIDailyTip(payload, { userId: currentUser.uid })
+          const dailyRes = await getAIDailyTip(payload, { userId: currentUser.uid, distanceUnit })
           const adviceText = dailyRes?.advice || ''
           setDailyTip(adviceText)
           setDailyOffline(Boolean(dailyRes?.offlineFallback || dailyRes?.source === 'fallback'))
@@ -216,7 +232,7 @@ const AICoach = () => {
         } else {
           // Workout count changed - regenerate
           console.log('[AI] Cache invalidated - workout count changed, regenerating weekly summary')
-          const weeklyRes = await getAICoachAdvice(normalizedWorkouts, { userId: currentUser.uid })
+          const weeklyRes = await getAICoachAdvice(normalizedWorkouts, { userId: currentUser.uid, distanceUnit })
           const adviceText = weeklyRes?.advice || ''
           setWeeklySummaryText(adviceText)
           setWeeklyOffline(Boolean(weeklyRes?.offlineFallback || weeklyRes?.source === 'fallback'))
@@ -236,7 +252,7 @@ const AICoach = () => {
         }
       } else {
         // No cache - generate and cache
-        const weeklyRes = await getAICoachAdvice(normalizedWorkouts, { userId: currentUser.uid })
+        const weeklyRes = await getAICoachAdvice(normalizedWorkouts, { userId: currentUser.uid, distanceUnit })
         const adviceText = weeklyRes?.advice || ''
         setWeeklySummaryText(adviceText)
         setWeeklyOffline(Boolean(weeklyRes?.offlineFallback || weeklyRes?.source === 'fallback'))
@@ -263,7 +279,7 @@ const AICoach = () => {
       setLoadingDailyTip(false)
       setLoadingWeeklySummary(false)
     }
-  }, [currentUser?.uid])
+  }, [currentUser, distanceUnit])
 
   useEffect(() => {
     loadCoachAdvice()
@@ -293,12 +309,12 @@ const AICoach = () => {
       totalWorkouts: workouts.length,
       muscleGroups: Array.from(muscleGroupSet),
       restDays: Math.max(0, WEEK_DAYS - trainedDaySet.size),
-      totalCardioDistance: totalCardioDistance.toFixed(2),
+      totalCardioDistance: convertDistanceFromKm(totalCardioDistance, distanceUnit).toFixed(2),
     }
 
     console.log('[AI] Weekly summary stats:', summary)
     return summary
-  }, [workouts])
+  }, [workouts, distanceUnit])
 
   return (
     <section className="space-y-5">
@@ -337,7 +353,7 @@ const AICoach = () => {
             <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">Rest days</p>
           </div>
           <div className="col-span-2 rounded-xl border border-[#E4E4E7] bg-white p-3 dark:border-dark-border dark:bg-dark-bg">
-            <p className="text-2xl font-black">{weeklySummary.totalCardioDistance} km</p>
+            <p className="text-2xl font-black">{weeklySummary.totalCardioDistance} {distanceUnit}</p>
             <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6B7280] dark:text-zinc-400">
               Total cardio distance
             </p>

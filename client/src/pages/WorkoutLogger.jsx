@@ -90,7 +90,7 @@ const WorkoutLogger = () => {
   const [cardioForm, setCardioForm] = useState({
     activityType: 'Running',
     customActivityName: '',
-    unit: 'km',
+    unit: localStorage.getItem('fitforge-units') === 'miles' ? 'miles' : 'km',
     distance: '',
     duration: '',
     feeling: 'moderate',
