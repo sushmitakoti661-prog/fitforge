@@ -6,6 +6,17 @@ const GEMINI_MODELS = [
 ]
 
 const FRIENDLY_FALLBACK = 'AI response is temporarily unavailable. Please try again shortly.'
+const MAX_503_RETRIES = 2
+const RETRY_DELAY_MS = 2000
+
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+const isServiceUnavailableError = (error) => {
+  const errorMessage = error?.message || ''
+  const statusCode = error?.status || error?.code
+
+  return statusCode === 503 || errorMessage.includes('503') || errorMessage.toLowerCase().includes('service unavailable')
+}
 
 const getGeminiClient = () => {
   const apiKey = process.env.GEMINI_API_KEY
@@ -32,7 +43,23 @@ const generateAIResponse = async (prompt) => {
     try {
       
       const model = client.getGenerativeModel({ model: modelName })
-      const result = await model.generateContent(prompt)
+      let result
+
+      for (let attempt = 1; attempt <= MAX_503_RETRIES + 1; attempt++) {
+        try {
+          result = await model.generateContent(prompt)
+          break
+        } catch (error) {
+          if (isServiceUnavailableError(error) && attempt <= MAX_503_RETRIES) {
+            console.warn(`⚠️ Gemini ${modelName}: 503 Service Unavailable, retrying attempt ${attempt}/${MAX_503_RETRIES} in 2 seconds`)
+            await wait(RETRY_DELAY_MS)
+            continue
+          }
+
+          throw error
+        }
+      }
+
       const text = result?.response?.text?.()?.trim()
 
       if (text) {
@@ -48,6 +75,7 @@ const generateAIResponse = async (prompt) => {
         continue
       }
     } catch (error) {
+      console.error('FULL GEMINI ERROR:', error)
       const errorMessage = error.message || 'Unknown error'
       const statusCode = error.status || error.code
 
